@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"anti_gen/identity"
+	"antigen/identity"
 	"os"
 	"bufio"
 	
