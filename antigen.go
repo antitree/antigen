@@ -1,6 +1,7 @@
 package main
 
 import (
+
 	"fmt"
 	"github.com/antitree/antigen/identity"
 	"os"
@@ -8,8 +9,9 @@ import (
 	"runtime"
 	"time"
 	"sync/atomic"
+	"flag"
 	
-	)
+)
 
 
 var balls = make(chan string, 100)
@@ -18,12 +20,17 @@ var done = false
 
 var checked uint64 = 0
 
+var debug = flag.Bool("debug", false, "enable debug logging")
+var cpus = flag.Int("cpu", runtime.NumCPU(), "number of cpu threads")
+var ct = flag.Int("ct", runtime.NumCPU()-1, "number of crypto threads")
+
 func main(){
 
-	var start uint64 = uint64(time.Now().UnixNano())
-   	var total uint64 = uint64(time.Now().UnixNano())
+	flag.Parse()
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	var start uint64 = uint64(time.Now().UnixNano())
+
+	runtime.GOMAXPROCS(*cpus)
 
 	f, err := os.Open("crackstation.txt")
 	if (err != nil) {
@@ -36,8 +43,12 @@ func main(){
 		scanner := bufio.NewScanner(f)
 
 		for scanner.Scan() {
+
 			password := scanner.Text()
-			fmt.Printf("new:%s\n", password)
+			if *debug == true {
+				fmt.Printf("new:%s\n", password)
+			}
+
 			balls <- password
 		}
 
@@ -47,7 +58,7 @@ func main(){
 	}()
 
 
-	for i := 0; i < runtime.NumCPU()-2 ; i++ {
+	for i := 0; i < *ct ; i++ {
 
 		go func() {
 
@@ -61,13 +72,14 @@ func main(){
 				address, signingkey, encryptionkey, _ := id.Export()
 				fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", password, address, signingkey, encryptionkey)
 
-//				checked++
 				atomic.AddUint64(&checked, 1)
-			   	total = uint64(time.Now().UnixNano())
+   				var total uint64 = uint64(time.Now().UnixNano())
 
 				var diff uint64 = (total - start)
 
-				fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
+				if *debug == true {
+					fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
+				}
 
 			}
 
