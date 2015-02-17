@@ -20,32 +20,48 @@ var done = false
 
 var checked uint64 = 0
 
-var debug = flag.Bool("debug", false, "enable debug logging")
-var cpus = flag.Int("cpu", runtime.NumCPU(), "number of cpu threads")
-var ct = flag.Int("ct", runtime.NumCPU()-1, "number of crypto threads")
+var debug bool
+var cpus int 
+var ct int
+var file string
 
-func main(){
+func init() {
+
+	flag.BoolVar(&debug, "debug", false, "enable debug logging")
+	flag.IntVar(&cpus, "cpus", runtime.NumCPU(), "number of cpu threads")
+	flag.IntVar(&ct, "ct", runtime.NumCPU()-1, "number of crypto threads")
+	flag.StringVar(&file, "file", "", "file to read from, use '-' for stdin")
 
 	flag.Parse()
 
+}
+
+func main(){
+
+
 	var start uint64 = uint64(time.Now().UnixNano())
 
-	runtime.GOMAXPROCS(*cpus)
-
-	f, err := os.Open("crackstation.txt")
-	if (err != nil) {
-		panic(err)
-	}
+	runtime.GOMAXPROCS(cpus)
 
 	// read word list into a channel
 	go func() {
 
-		scanner := bufio.NewScanner(f)
+		var scanner *bufio.Scanner
+
+		if ( file == "-" ) {
+			scanner = bufio.NewScanner(os.Stdin)
+		} else {
+			f, err := os.Open(file)
+			if (err != nil) {
+				panic(err)
+			}
+			scanner = bufio.NewScanner(f)
+		}
 
 		for scanner.Scan() {
 
 			password := scanner.Text()
-			if *debug == true {
+			if debug == true {
 				fmt.Printf("new:%s\n", password)
 			}
 
@@ -58,15 +74,26 @@ func main(){
 	}()
 
 
-	for i := 0; i < *ct ; i++ {
+	for i := 0; i < ct ; i++ {
 
 		go func() {
 
+			var password string
+			ok := true
 			for {
 
-				if done == true { break ; }
+				select {
 
-				password := <- balls
+					case password, ok = <-balls:
+					if ok {
+						// balls
+					} else {
+						if done == true { break; }
+					}
+					default:
+						// no balls
+				}
+
 				var id, _ = identity.NewDeterministic(password, 1)
 				id.CreateAddress(4,1)
 				address, signingkey, encryptionkey, _ := id.Export()
@@ -77,7 +104,7 @@ func main(){
 
 				var diff uint64 = (total - start)
 
-				if *debug == true {
+				if debug == true {
 					fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
 				}
 
