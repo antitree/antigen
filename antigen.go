@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"runtime"
 	"time"
+	"sync/atomic"
 	
 	)
 
@@ -15,12 +16,12 @@ var balls = make(chan string, 100)
 var sem = make(chan int)
 var done = false
 
+var checked uint64 = 0
+
 func main(){
 
-	start := time.Now().UnixNano()
-   	total := time.Now().UnixNano()
-	diff := total - start
-	var checked int64 = 0
+	var start uint64 = uint64(time.Now().UnixNano())
+   	var total uint64 = uint64(time.Now().UnixNano())
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -60,10 +61,12 @@ func main(){
 				address, signingkey, encryptionkey, _ := id.Export()
 				fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", password, address, signingkey, encryptionkey)
 
-				checked++
-			   	total = time.Now().UnixNano()
+//				checked++
+				atomic.AddUint64(&checked, 1)
+			   	total = uint64(time.Now().UnixNano())
 
-				diff = total - start
+				var diff uint64 = (total - start)
+
 				fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
 
 			}
@@ -76,7 +79,7 @@ func main(){
 	<- sem
 	done = true
 
-	stop := time.Now().UnixNano()
+	var stop uint64 = uint64(time.Now().UnixNano())
 
 	fmt.Printf("Total Time:%.3f", float64(stop-start)/1e9 )
 
