@@ -68,7 +68,7 @@ func main(){
 			balls <- password
 		}
 
-		fmt.Printf("Doneski!\n")
+		fmt.Printf("Processed:%d\n", checked)
 		sem <- 1
 
 	}()
@@ -120,7 +120,7 @@ func main(){
 
 	var stop uint64 = uint64(time.Now().UnixNano())
 
-	fmt.Printf("Total Time:%.3f", float64(stop-start)/1e9 )
+	fmt.Printf("Total Time:%.3f\n", float64(stop-start)/1e9 )
 
 
 
