@@ -3,7 +3,7 @@ package identity
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"github.com/conformal/fastsha256"
 	"crypto/sha512"
 	"errors"
 	"math/big"
@@ -182,23 +182,19 @@ func NewDeterministic(passphrase string, initialZeros uint64) (*Own, error) {
 	// Go through loop to encryption keys with required num. of zeros
 	for {
 		// Create signing keys
-		temp = append([]byte(passphrase),
-			types.Varint(signingKeyNonce).Serialize()...)
+		temp = append([]byte(passphrase), types.Varint(signingKeyNonce).Serialize()...)
 		sha.Reset()
 		sha.Write(temp)
-		id.SigningKey, err = elliptic.PrivateKeyFromRawBytes(curve,
-			sha.Sum(nil)[:32])
+		id.SigningKey, err = elliptic.PrivateKeyFromRawBytes(curve, sha.Sum(nil)[:32])
 		if err != nil {
 			return nil, errors.New("private key generation failed: " + err.Error())
 		}
 
 		// Create encryption keys
-		temp = append([]byte(passphrase),
-			types.Varint(encryptionKeyNonce).Serialize()...)
+		temp = append([]byte(passphrase), types.Varint(encryptionKeyNonce).Serialize()...)
 		sha.Reset()
 		sha.Write(temp)
-		id.EncryptionKey, err = elliptic.PrivateKeyFromRawBytes(curve,
-			sha.Sum(nil)[:32])
+		id.EncryptionKey, err = elliptic.PrivateKeyFromRawBytes(curve, sha.Sum(nil)[:32])
 		if err != nil {
 			return nil, errors.New("private key generation failed: " + err.Error())
 		}
@@ -233,7 +229,7 @@ func privkeyToWIF(prikey *elliptic.PrivateKey) (wifstr string) {
 	/* See https://en.bitcoin.it/wiki/Wallet_import_format */
 
 	/* Create a new SHA256 context */
-	sha256_h := sha256.New()
+	sha256_h := fastsha256.New()
 
 	/* Convert the private key to a byte sequence */
 	prikey_bytes := prikey.Key
@@ -289,7 +285,7 @@ func wifToPrivkey(wifstr string) (prikey *elliptic.PrivateKey, err error) {
 	checksum := wif_bytes[len(wif_bytes)-4:]
 
 	// Create a new SHA256 context
-	sha256_h := sha256.New()
+	sha256_h := fastsha256.New()
 
 	// SHA256 Hash
 	sha256_h.Reset()
