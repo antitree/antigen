@@ -94,8 +94,9 @@ func main(){
 
 	var stop uint64 = uint64(time.Now().UnixNano())
 
-	fmt.Printf("Processed:%d\n", checked)
-	fmt.Printf("Total Time:%.3f\n", float64(stop-start)/1e9 )
+	tt := float64(stop-start)/1e9
+	tt = float64(checked) / tt
+	fmt.Printf("Processed %d words in %.3f seconds for a rate of %.4f/second\n", checked, float64(stop-start)/1e9, tt)
 
 }
 
