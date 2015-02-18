@@ -8,15 +8,12 @@ import (
 	"bufio"
 	"runtime"
 	"time"
+	"sync"
 	"sync/atomic"
 	"flag"
+	"errors"
 	
 )
-
-
-var balls = make(chan string, 100)
-var sem = make(chan int)
-var done = false
 
 var checked uint64 = 0
 
@@ -24,6 +21,7 @@ var debug bool
 var cpus int 
 var ct int
 var file string
+var start uint64
 
 func init() {
 
@@ -34,102 +32,157 @@ func init() {
 
 	flag.Parse()
 
+	if debug {
+		fmt.Printf("CPU:%d:CT:%d:FILE:%q\n", cpus, ct, file)
+	}
+
+	runtime.GOMAXPROCS(cpus)
+
+}
+
+type result struct {
+
+	password string
+	address string
+	signingkey string
+	encryptionkey string
+	err error
+
 }
 
 func main(){
 
+	start = uint64(time.Now().UnixNano())
 
-	var start uint64 = uint64(time.Now().UnixNano())
+	done := make(chan struct{})
+	defer close(done)
 
-	runtime.GOMAXPROCS(cpus)
 
-	// read word list into a channel
-	go func() {
+	balls, errc := parseInput(done)
+	if err := <-errc; err != nil {
+		panic(err)
+	}
 
-		var scanner *bufio.Scanner
+	c := make(chan result, 1000)
 
-		if ( file == "-" ) {
-			scanner = bufio.NewScanner(os.Stdin)
-		} else {
-			f, err := os.Open(file)
-			if (err != nil) {
-				panic(err)
-			}
-			scanner = bufio.NewScanner(f)
-		}
-
-		for scanner.Scan() {
-
-			password := scanner.Text()
-			if debug == true {
-				fmt.Printf("new:%s\n", password)
-			}
-
-			balls <- password
-		}
-
-		fmt.Printf("Processed:%d\n", checked)
-		sem <- 1
-
-	}()
-
+	var wg sync.WaitGroup
+	wg.Add(ct)
 
 	for i := 0; i < ct ; i++ {
 
+		if debug {
+			fmt.Printf("Adding worker:%d\n", i)
+		}
+
 		go func() {
 
-			var password string
-			ok := true
-			for {
-
-				select {
-
-					case password, ok = <-balls:
-					if ok {
-						// balls
-					} else {
-						if done == true { break; }
-					}
-					default:
-						// no balls
-				}
-
-				var id, _ = identity.NewDeterministic(password, 1)
-				id.CreateAddress(4,1)
-				address, signingkey, encryptionkey, _ := id.Export()
-				fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", password, address, signingkey, encryptionkey)
-
-				atomic.AddUint64(&checked, 1)
-   				var total uint64 = uint64(time.Now().UnixNano())
-
-				var diff uint64 = (total - start)
-
-				if debug == true {
-					fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
-				}
-
-			}
+			worker(done, balls, c)
+			wg.Done()
 
 		}()
 
 	}
 
-	// stop here when we are done
-	<- sem
-	done = true
+	go func() {
+		wg.Wait()
+		close(c)
+	}()
+
+	for r := range c  {
+		fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", r.password, r.address, r.signingkey, r.encryptionkey)
+	}
 
 	var stop uint64 = uint64(time.Now().UnixNano())
 
+	fmt.Printf("Processed:%d\n", checked)
 	fmt.Printf("Total Time:%.3f\n", float64(stop-start)/1e9 )
 
+}
 
+// digester reads path names from paths and sends digests of the corresponding
+// files on c until either paths or done is closed.
+func worker(done <-chan struct{}, balls <-chan string, c chan<- result) {
 
+	for password := range balls { 
+
+		var id, _ = identity.NewDeterministic(password, 1)
+		id.CreateAddress(4,1)
+		address, signingkey, encryptionkey, err := id.Export()
+
+		atomic.AddUint64(&checked, 1)
+   		var total uint64 = uint64(time.Now().UnixNano())
+
+		var diff uint64 = (total - start)
+
+		if debug == true {
+			fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
+		}
+
+		select {
+			case c <- result{password, address, signingkey, encryptionkey, err}:
+			case <-done:
+			return
+		}
+	}
 
 }
 
 
+//
+//
+//
+func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
+
+	balls := make(chan string, 50)
+	errc := make(chan error, 1)
+
+	go func() { 
+
+		// close when done
+		defer close(balls)
+
+		var scanner *bufio.Scanner
+
+		if ( file == "-" ) {
+			if debug == true {
+				fmt.Printf("STDIN\n")
+			}
+			scanner = bufio.NewScanner(os.Stdin)
+		} else {
+
+			if debug == true {
+				fmt.Printf("file:%q\n", file)
+			}
+			f, err := os.Open(file)
+			if (err != nil) {
+				errc <- err
+				return
+			}
+			errc <- nil
+
+			scanner = bufio.NewScanner(f)
+
+		}
+
+		for scanner.Scan() {
+
+			password := scanner.Text()
+
+			select {
+				case balls <- password:
+				case <-done:
+					errc <- errors.New("cancelled")
+				return
+			}
+
+		}
 
 
+	}()
+
+	return balls, errc
+
+}
 
 
 
