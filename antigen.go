@@ -12,6 +12,13 @@ import (
 	"sync/atomic"
 	"flag"
 	"errors"
+	"github.com/syndtr/goleveldb/leveldb"
+	//"github.com/syndtr/goleveldb/leveldb/errors"
+	//"github.com/syndtr/goleveldb/leveldb/opt"
+	//"github.com/syndtr/goleveldb/leveldb/storage"
+	//"github.com/syndtr/goleveldb/leveldb/table"
+	//"github.com/syndtr/goleveldb/leveldb/util"
+	//"log"
 	
 )
 
@@ -88,8 +95,19 @@ func main(){
 		close(c)
 	}()
 
+	db, err := leveldb.OpenFile("BallZ.db", nil)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+
 	for r := range c  {
 		fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", r.password, r.address, r.signingkey, r.encryptionkey)
+		err = db.Put([]byte(r.address), []byte(r.password), nil)
+		if err != nil {
+			fmt.Printf("Error on put:%q\n", err)
+		}
 	}
 
 	var stop uint64 = uint64(time.Now().UnixNano())
@@ -142,14 +160,9 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 		// close when done
 		defer close(balls)
 
-		var scanner *bufio.Scanner
+		scanner := bufio.NewScanner(os.Stdin)
 
-		if ( file == "-" ) {
-			if debug == true {
-				fmt.Printf("STDIN\n")
-			}
-			scanner = bufio.NewScanner(os.Stdin)
-		} else {
+		if ( file != "-" ) {
 
 			if debug == true {
 				fmt.Printf("file:%q\n", file)
@@ -175,6 +188,7 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 					errc <- errors.New("cancelled")
 				return
 			}
+
 
 		}
 
