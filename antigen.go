@@ -3,7 +3,6 @@ package main
 import (
 
 	"fmt"
-	"github.com/antitree/antigen/identity"
 	"os"
 	"bufio"
 	"runtime"
@@ -12,6 +11,8 @@ import (
 	"sync/atomic"
 	"flag"
 	"errors"
+	"compress/bzip2"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	//"github.com/syndtr/goleveldb/leveldb/errors"
 	//"github.com/syndtr/goleveldb/leveldb/opt"
@@ -19,6 +20,9 @@ import (
 	//"github.com/syndtr/goleveldb/leveldb/table"
 	//"github.com/syndtr/goleveldb/leveldb/util"
 	//"log"
+
+
+	"github.com/antitree/antigen/identity"
 	
 )
 
@@ -152,7 +156,7 @@ func worker(done <-chan struct{}, balls <-chan string, c chan<- result) {
 //
 func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 
-	balls := make(chan string, 50)
+	balls := make(chan string, 100)
 	errc := make(chan error, 1)
 
 	go func() { 
@@ -161,6 +165,8 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 		defer close(balls)
 
 		scanner := bufio.NewScanner(os.Stdin)
+	    scanner.Split(bufio.ScanLines)
+
 
 		if ( file != "-" ) {
 
@@ -174,7 +180,9 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 			}
 			errc <- nil
 
-			scanner = bufio.NewScanner(f)
+			zReader := bzip2.NewReader(f)
+
+			scanner = bufio.NewScanner(zReader)
 
 		}
 
