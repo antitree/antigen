@@ -15,7 +15,7 @@ import (
 
 	"github.com/syndtr/goleveldb/leveldb"
 	//"github.com/syndtr/goleveldb/leveldb/errors"
-	//"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	//"github.com/syndtr/goleveldb/leveldb/storage"
 	//"github.com/syndtr/goleveldb/leveldb/table"
 	//"github.com/syndtr/goleveldb/leveldb/util"
@@ -23,13 +23,13 @@ import (
 
 
 	"github.com/antitree/antigen/identity"
-	
+
 )
 
 var checked uint64 = 0
 
 var debug bool
-var cpus int 
+var cpus int
 var ct int
 var file string
 var start uint64
@@ -99,7 +99,11 @@ func main(){
 		close(c)
 	}()
 
-	db, err := leveldb.OpenFile("BallZ.db", nil)
+	o := &opt.Options {
+		Compression: opt.SnappyCompression,
+	}
+
+	db, err := leveldb.OpenFile("BallZ.db", o)
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +130,7 @@ func main(){
 // files on c until either paths or done is closed.
 func worker(done <-chan struct{}, balls <-chan string, c chan<- result) {
 
-	for password := range balls { 
+	for password := range balls {
 
 		var id, _ = identity.NewDeterministic(password, 1)
 		id.CreateAddress(4,1)
@@ -159,7 +163,7 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 	balls := make(chan string, 100)
 	errc := make(chan error, 1)
 
-	go func() { 
+	go func() {
 
 		// close when done
 		defer close(balls)
@@ -206,10 +210,3 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 	return balls, errc
 
 }
-
-
-
-
-
-
-
