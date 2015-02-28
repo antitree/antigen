@@ -1,17 +1,16 @@
 package main
 
 import (
-
+	"bufio"
+	"compress/gzip"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
-	"bufio"
 	"runtime"
-	"time"
 	"sync"
 	"sync/atomic"
-	"flag"
-	"errors"
-	"compress/bzip2"
+	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	//"github.com/syndtr/goleveldb/leveldb/errors"
@@ -21,12 +20,10 @@ import (
 	//"github.com/syndtr/goleveldb/leveldb/util"
 	//"log"
 
-
 	"github.com/antitree/antigen/identity"
-
 )
 
-var checked uint64 = 0
+var checked uint64
 
 var debug bool
 var cpus int
@@ -52,22 +49,19 @@ func init() {
 }
 
 type result struct {
-
-	password string
-	address string
-	signingkey string
+	password      string
+	address       string
+	signingkey    string
 	encryptionkey string
-	err error
-
+	err           error
 }
 
-func main(){
+func main() {
 
 	start = uint64(time.Now().UnixNano())
 
 	done := make(chan struct{})
 	defer close(done)
-
 
 	balls, errc := parseInput(done)
 	if err := <-errc; err != nil {
@@ -79,7 +73,7 @@ func main(){
 	var wg sync.WaitGroup
 	wg.Add(ct)
 
-	for i := 0; i < ct ; i++ {
+	for i := 0; i < ct; i++ {
 
 		if debug {
 			fmt.Printf("Adding worker:%d\n", i)
@@ -99,7 +93,7 @@ func main(){
 		close(c)
 	}()
 
-	o := &opt.Options {
+	o := &opt.Options{
 		Compression: opt.SnappyCompression,
 	}
 
@@ -109,8 +103,7 @@ func main(){
 	}
 	defer db.Close()
 
-
-	for r := range c  {
+	for r := range c {
 		fmt.Printf("{%q:{\"address\":%q,\"signingkey\":%q,\"encryptionkey\":%q}}\n", r.password, r.address, r.signingkey, r.encryptionkey)
 		err = db.Put([]byte(r.address), []byte(r.password), nil)
 		if err != nil {
@@ -118,47 +111,44 @@ func main(){
 		}
 	}
 
-	var stop uint64 = uint64(time.Now().UnixNano())
+	var stop = uint64(time.Now().UnixNano())
 
-	tt := float64(stop-start)/1e9
+	tt := float64(stop-start) / 1e9
 	tt = float64(checked) / tt
 	fmt.Printf("Processed %d words in %.3f seconds for a rate of %.4f/second\n", checked, float64(stop-start)/1e9, tt)
 
 }
 
-// digester reads path names from paths and sends digests of the corresponding
-// files on c until either paths or done is closed.
 func worker(done <-chan struct{}, balls <-chan string, c chan<- result) {
 
 	for password := range balls {
 
 		var id, _ = identity.NewDeterministic(password, 1)
-		id.CreateAddress(4,1)
+		id.CreateAddress(4, 1)
 		address, signingkey, encryptionkey, err := id.Export()
 
 		atomic.AddUint64(&checked, 1)
-   		var total uint64 = uint64(time.Now().UnixNano())
+		var total = uint64(time.Now().UnixNano())
 
-		var diff uint64 = (total - start)
+		var diff = (total - start)
 
 		if debug == true {
-			fmt.Printf("time:%.8f \n", float64( diff / checked ) /1e9)
+			fmt.Printf("time:%.8f \n", float64(diff/checked)/1e9)
 		}
 
 		select {
-			case c <- result{password, address, signingkey, encryptionkey, err}:
-			case <-done:
+		case c <- result{password, address, signingkey, encryptionkey, err}:
+		case <-done:
 			return
 		}
 	}
 
 }
 
-
 //
 //
 //
-func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
+func parseInput(done <-chan struct{}) (<-chan string, <-chan error) {
 
 	balls := make(chan string, 100)
 	errc := make(chan error, 1)
@@ -169,22 +159,21 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 		defer close(balls)
 
 		scanner := bufio.NewScanner(os.Stdin)
-	    scanner.Split(bufio.ScanLines)
+		scanner.Split(bufio.ScanLines)
 
-
-		if ( file != "-" ) {
+		if file != "-" {
 
 			if debug == true {
 				fmt.Printf("file:%q\n", file)
 			}
 			f, err := os.Open(file)
-			if (err != nil) {
+			if err != nil {
 				errc <- err
 				return
 			}
 			errc <- nil
 
-			zReader := bzip2.NewReader(f)
+			zReader, err := gzip.NewReader(f)
 
 			scanner = bufio.NewScanner(zReader)
 
@@ -195,15 +184,13 @@ func parseInput(done <-chan struct{} ) (<-chan string, <-chan error) {
 			password := scanner.Text()
 
 			select {
-				case balls <- password:
-				case <-done:
-					errc <- errors.New("cancelled")
+			case balls <- password:
+			case <-done:
+				errc <- errors.New("cancelled")
 				return
 			}
 
-
 		}
-
 
 	}()
 
