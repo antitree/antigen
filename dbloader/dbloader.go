@@ -95,6 +95,7 @@ func main() {
 
 	o := &opt.Options{
 		Compression: opt.SnappyCompression,
+		WriteBuffer: 16 * 1024 * 1024,
 	}
 
 	db, err := leveldb.OpenFile("BallZ.db", o)
